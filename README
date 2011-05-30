@@ -1,0 +1,31 @@
+Piles is a mechanism which provides sugar for storing and retrieving large arrays of jvm objects efficiently. Instead of storing the objects one after another as would conventionally be done, a pile stores their fields in arrays. analogous to a column based database as opposed to a row based database.
+
+Every jvm object suffers from management overhead - each instance needs a header specifying its type, bookkeeping for locking, and other such things. Additionally the more live objects the more work needs to be done during a garbage collection. Giant arrays of primitives store the raw data back to back, asses to elbows, and count as only one object, resulting in very large (100+%) increases in storage efficiency. This can obviously be done relatively easily by hand by declaring arrays for each field and indexing them all, but this flys in the face of conventional OO practices (no conveniently scoped fields, can't get or pass a reference to any item, etc). Piles let you have your cake and eat it too by making and using field arrays for a class automatically.
+
+This is implemented using bcel to emit and load a class which contains an array per field and has functions to load and store these fields into an instance of the class. Reflection is used only during class generation / initialization. Loading from and storing to a pile uses neither reflection nor allocation. The second (scalafied method) of object access doesn't even use any casting, and is potentially faster than a naive large array due to more efficient use of dcache.
+
+There are two ways to use a pile. The first, simpler way is by making a java object with public fields, and using the pile's load/store methods. These methods directly access the object's fields, meaning they are fast but require the fields to be public. As such these objects cannot be declared in scala (which is unable to emit public fields).
+
+Scala uses FUPA (functional uniform principle of access) (please use this during a conversation sometime) - to bridge the gap between a field access and a method call, scala forces the use of getters and setters by automatically generating them for all fields. As such it makes all fields private, meaning the afore mentioned load/store routines won't work (illegal access exception). For scala objects, piles can emit a 'piled' version of a class, which is aware of the fact that it exists in a pile. This class inherits the passed class (and can thus be used as it) but implements a Piled interface allowing you to connect it to a pile and specify its index in it. All of the class's fields' getters and setters are overridden redirecting access directly to the pile's arrays. This is faster than the first method, as it avoids not only ugly casting necessary to get around type erasure (the Pile interface has to cast from 'object') but having to copy all of the object's fields for every load and store (fields are retrieved from the arrays on demand). Interestingly this can also be faster than a naive giant array of conventional objects because you're only accessing the fields you need (meaning more of those fields fit in cache). Now if only the jvm let us use simd.
+
+For the ghetto benchmark, a pointless little op is done to each of 10 million classes, each containing 3 ints. The naive array of 10mil objects uses one shitload more memory than the piles. The simple pile (load/store) takes only 20% longer (which would be absolutely dominated by any real operation), and the piled version is actually much faster (presumably due to voodoo or dcache).
+
+Piled:
+16.200000ms
+mem: 121180504
+
+Pile:
+89.200000ms
+mem: 121456416
+
+Array:
+74.800000ms
+mem: 282306560
+
+Benches marked on a sweet ass mbp 15 i7 quad.
+
+Piles don't come without a price, though. Aside from being voodoo, references are to temporary objects, not the actual objects in the pile. This is fine for looping operations, but must be kept in mind. Pile objects cannot be null, since they're just primitives in giant arrays. Constructors aren't called on piled objects, and all of their values are initialized to the primitive's default values. This requires an ugly 'init' function (just think of it as a cpp ctor!). You cannot resize a pile. That could be implemented, but hasn't been. I don't need it right now. And finally piles will store *all* fields as direct values. This means that child objects must be explicitly flattened or are stored conveintionally as a billion objects (I plan to do this with an annotation), Also, because scala likes to tape all kinds of little knick knacks to its classes, stuff often winds up being stored that shouldn't be. As an example:
+
+      val (x, y, z) = (0, 0, 0)
+
+stores an additional tuple3 on each instance. haha. That could also be worked around with annotations or something, but it isn't yet. I also kinda wanna support java properties.

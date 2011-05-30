@@ -29,7 +29,6 @@ object PilesTest extends App {
 
   def printMem {
     rt.gc
-    readLine
     println("mem: %d".format(rt.totalMemory - rt.freeMemory))
     println
   }
