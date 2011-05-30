@@ -1,5 +1,10 @@
 class Point3 {
-  var (x, y, z) = (0, 0, 0)
+  //\/ this apparently holds onto a tuple3 instance in each class instance :o avoid for efficiency
+  //var (x, y, z) = (0, 0, 0)
+
+  var x = 0
+  var y = 0
+  var z = 0
 
   def print {
     println("%d %d %d".format(x, y, z))
@@ -20,45 +25,79 @@ object PilesTest extends App {
     return timeDiff
   }
 
-  var point: Point3 = null
-
-  val point3PileCls = Piles.genPile(classOf[Point3])
-  val point3PiledCls = Piles.genPiled(classOf[Point3], point3PileCls)
-
-  var pile = point3PileCls.newInstance.asInstanceOf[Pile]
-  var piled = point3PiledCls.newInstance.asInstanceOf[Piled]
-  point = piled.asInstanceOf[Point3]
-
-  pile.init(n)
-  piled.setPile(pile)
-
   val rt = Runtime.getRuntime
-  println("mem: %d".format(rt.totalMemory - rt.freeMemory))
 
-  time {
-    for(i <- 0 until n) {
-      piled.setPileIdx(i)
-      point.x = i
-      point.y = i * 2
-    }
+  def printMem {
+    rt.gc
+    readLine
+    println("mem: %d".format(rt.totalMemory - rt.freeMemory))
+    println
   }
 
-  pile = null
-  piled = null
-  point = null
-  rt.gc
+  def testPiled {
+    println("Piled:")
 
-  val points = new Array[Point3](n)
-  (0 until n).foreach(points(_) = new Point3)
+    val point3PileCls = Piles.genPile(classOf[Point3])
+    val point3PiledCls = Piles.genPiled(classOf[Point3], point3PileCls)
 
-  println("mem: %d".format(rt.totalMemory - rt.freeMemory))
+    val pile = point3PileCls.newInstance.asInstanceOf[Pile]
+    val piled = point3PiledCls.newInstance.asInstanceOf[Piled]
+    val point = piled.asInstanceOf[Point3]
 
-  time {
-    for(i <- 0 until n) {
-      val p = points(i)
-      p.x = i
-      p.y = i * 2
+    pile.init(n)
+    piled.setPile(pile)
+
+    time {
+      for(i <- 0 until n) {
+        piled.setPileIdx(i)
+        point.x = i
+        point.y = i * 2
+      }
     }
+
+    printMem
   }
 
+  def testPile {
+    println("Pile:")
+
+    val openPoint3PileCls = Piles.genPile(classOf[OpenPoint3])
+
+    val pile = openPoint3PileCls.newInstance.asInstanceOf[Pile]
+    val point = new OpenPoint3
+
+    pile.init(n)
+
+    time {
+      for(i <- 0 until n) {
+        pile.load(point, i)
+        point.x = i
+        point.y = i * 2
+        pile.store(point, i)
+      }
+    }
+
+    printMem
+  }
+
+  def testArr {
+    println("Array:")
+
+    val points = new Array[Point3](n)
+    (0 until n).foreach(points(_) = new Point3)
+
+    time {
+      for(i <- 0 until n) {
+        val point = points(i)
+        point.x = i
+        point.y = i * 2
+      }
+    }
+
+    printMem
+  }
+
+  testPiled
+  testPile
+  testArr
 }
