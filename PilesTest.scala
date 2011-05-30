@@ -46,6 +46,7 @@ object PilesTest extends App {
   pile = null
   piled = null
   point = null
+  rt.gc
 
   val points = new Array[Point3](n)
   (0 until n).foreach(points(_) = new Point3)
